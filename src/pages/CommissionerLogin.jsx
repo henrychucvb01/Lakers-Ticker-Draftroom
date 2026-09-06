@@ -48,9 +48,7 @@ export default function CommissionerLogin({
           Unlock Commissioner
         </button>
 
-        <div className="demo-pin">
-          Commissioner PIN: 2424
-        </div>
+     
       </form>
     </main>
   );
