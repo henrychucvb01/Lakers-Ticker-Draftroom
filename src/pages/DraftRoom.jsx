@@ -97,7 +97,9 @@ export default function DraftRoom({
         <div className="panel">
           <div className="panel-title-row">
             <h2>Available Games</h2>
-            <span className="game-count">{games.length} available</span>
+            <span className="game-count">
+              {games.length} available
+            </span>
           </div>
 
           <div className="your-turn-box">
@@ -115,7 +117,6 @@ export default function DraftRoom({
                   <th>Rank</th>
                   <th>Opponent</th>
                   <th>Date & Time</th>
-                  <th>Special</th>
                   <th>Interested</th>
                   <th>Select</th>
                 </tr>
@@ -126,17 +127,56 @@ export default function DraftRoom({
                   <tr key={game.id}>
                     <td>{index + 1}</td>
 
-                    <td className="opponent">{game.opponent}</td>
+                    <td className="opponent">
+                      {game.opponent}
+
+                      {game.preseason && (
+                        <span
+                          style={{
+                            marginLeft: "8px",
+                            display: "inline-block",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            background: "#c62828",
+                            color: "white",
+                            fontSize: "10px",
+                            fontWeight: "800",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          PRE
+                        </span>
+                      )}
+
+                      {game.cup && (
+                        <span
+                          style={{
+                            marginLeft: "6px",
+                            display: "inline-block",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            background: "#fdb927",
+                            color: "#302044",
+                            fontSize: "10px",
+                            fontWeight: "800",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          CUP
+                        </span>
+                      )}
+                    </td>
 
                     <td>
                       <div>{formatDate(game.date)}</div>
                       <span className="muted">{game.time}</span>
                     </td>
 
-                    <td>{game.note || "—"}</td>
-
                     <td>
-                      <button className="watch-button" type="button">
+                      <button
+                        className="watch-button"
+                        type="button"
+                      >
                         ☆
                       </button>
                     </td>
@@ -192,7 +232,10 @@ export default function DraftRoom({
                     : "draft-order-row"
                 }
               >
-                <span className="order-number">{index + 1}</span>
+                <span className="order-number">
+                  {index + 1}
+                </span>
+
                 <span>{player.name}</span>
               </div>
             ))}
