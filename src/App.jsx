@@ -12,10 +12,6 @@ import CommissionerLogin from "./pages/CommissionerLogin";
 export default function App() {
   const [page, setPage] = useState("draft");
 
-  // -----------------------------
-  // SEASON DATA
-  // -----------------------------
-
   const [players, setPlayers] = useState(startingMembers);
   const [games, setGames] = useState(startingGames);
 
@@ -23,17 +19,9 @@ export default function App() {
     startingMembers.filter((player) => player.status === "active")
   );
 
-  // -----------------------------
-  // COMMISSIONER ACCESS
-  // -----------------------------
-
   const [commissionerUnlocked, setCommissionerUnlocked] = useState(false);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
-
-  // -----------------------------
-  // DRAFT STATE
-  // -----------------------------
 
   const [draftStarted, setDraftStarted] = useState(false);
   const [draftPaused, setDraftPaused] = useState(false);
@@ -41,15 +29,7 @@ export default function App() {
 
   const [clockSeconds, setClockSeconds] = useState(90);
 
-  // -----------------------------
-  // MEMBER FORM
-  // -----------------------------
-
   const [newPlayer, setNewPlayer] = useState("");
-
-  // -----------------------------
-  // GAME FORM
-  // -----------------------------
 
   const [newGame, setNewGame] = useState({
     opponent: "",
@@ -59,20 +39,12 @@ export default function App() {
 
   const [selectedGames, setSelectedGames] = useState([]);
 
-  // -----------------------------
-  // DERIVED DATA
-  // -----------------------------
-
   const draftGames = useMemo(
     () => games.filter((game) => game.status === "draft"),
     [games]
   );
 
   const currentPicker = draftOrder[0];
-
-  // -----------------------------
-  // COMMISSIONER LOGIN
-  // -----------------------------
 
   function unlockCommissioner(event) {
     event.preventDefault();
@@ -86,14 +58,23 @@ export default function App() {
     }
   }
 
-  // -----------------------------
-  // GAME FUNCTIONS
-  // -----------------------------
-
   function updateGameStatus(id, status) {
     setGames((currentGames) =>
       currentGames.map((game) =>
         game.id === id ? { ...game, status } : game
+      )
+    );
+  }
+
+  function updateGameIndicator(id, indicator, checked) {
+    setGames((currentGames) =>
+      currentGames.map((game) =>
+        game.id === id
+          ? {
+              ...game,
+              [indicator]: checked,
+            }
+          : game
       )
     );
   }
@@ -111,6 +92,8 @@ export default function App() {
       date: newGame.date,
       time: newGame.time,
       status: "draft",
+      preseason: false,
+      cup: false,
     };
 
     setGames((currentGames) => [...currentGames, game]);
@@ -162,10 +145,6 @@ export default function App() {
 
     setSelectedGames([]);
   }
-
-  // -----------------------------
-  // MEMBER FUNCTIONS
-  // -----------------------------
 
   function addPlayer(event) {
     event.preventDefault();
@@ -233,10 +212,6 @@ export default function App() {
     }
   }
 
-  // -----------------------------
-  // DRAFT ORDER
-  // -----------------------------
-
   function randomizeDraftOrder() {
     const randomized = players.filter(
       (player) => player.status === "active"
@@ -254,10 +229,6 @@ export default function App() {
     setDraftOrder(randomized);
   }
 
-  // -----------------------------
-  // PROTECTED PAGE HELPER
-  // -----------------------------
-
   function commissionerLogin() {
     return (
       <CommissionerLogin
@@ -268,10 +239,6 @@ export default function App() {
       />
     );
   }
-
-  // -----------------------------
-  // PAGE CONTENT
-  // -----------------------------
 
   function renderPage() {
     if (page === "draft") {
@@ -301,6 +268,7 @@ export default function App() {
           toggleAllGames={toggleAllGames}
           bulkStatus={bulkStatus}
           updateGameStatus={updateGameStatus}
+          updateGameIndicator={updateGameIndicator}
           deleteGame={deleteGame}
           newGame={newGame}
           setNewGame={setNewGame}
@@ -349,10 +317,6 @@ export default function App() {
 
     return null;
   }
-
-  // -----------------------------
-  // APP
-  // -----------------------------
 
   return (
     <div className="app-shell">
