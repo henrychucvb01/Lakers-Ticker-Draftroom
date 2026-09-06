@@ -33,7 +33,8 @@ export const startingGames = [
     date: "2026-10-08",
     time: "7:30 PM",
     status: "draft",
-    note: "Preseason",
+    preseason: true,
+    cup: false,
   },
   {
     id: 2,
@@ -41,6 +42,8 @@ export const startingGames = [
     date: "2026-10-23",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 3,
@@ -48,6 +51,8 @@ export const startingGames = [
     date: "2026-10-27",
     time: "8:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 4,
@@ -55,6 +60,8 @@ export const startingGames = [
     date: "2026-11-17",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 5,
@@ -62,7 +69,8 @@ export const startingGames = [
     date: "2026-11-20",
     time: "7:00 PM",
     status: "draft",
-    note: "NBA Cup",
+    preseason: false,
+    cup: true,
   },
   {
     id: 6,
@@ -70,6 +78,8 @@ export const startingGames = [
     date: "2026-11-23",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 7,
@@ -77,6 +87,8 @@ export const startingGames = [
     date: "2026-12-14",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 8,
@@ -84,7 +96,8 @@ export const startingGames = [
     date: "2026-12-25",
     time: "2:00 PM",
     status: "draft",
-    note: "Christmas Day",
+    preseason: false,
+    cup: false,
   },
   {
     id: 9,
@@ -92,6 +105,8 @@ export const startingGames = [
     date: "2026-12-27",
     time: "6:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 10,
@@ -99,6 +114,8 @@ export const startingGames = [
     date: "2027-01-07",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 11,
@@ -106,6 +123,8 @@ export const startingGames = [
     date: "2027-01-14",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 12,
@@ -113,6 +132,8 @@ export const startingGames = [
     date: "2027-01-17",
     time: "6:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 13,
@@ -120,6 +141,8 @@ export const startingGames = [
     date: "2027-02-12",
     time: "7:30 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 14,
@@ -127,6 +150,8 @@ export const startingGames = [
     date: "2027-02-16",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 15,
@@ -134,6 +159,8 @@ export const startingGames = [
     date: "2027-02-18",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 16,
@@ -141,6 +168,8 @@ export const startingGames = [
     date: "2027-03-06",
     time: "5:30 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 17,
@@ -148,6 +177,8 @@ export const startingGames = [
     date: "2027-03-12",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 18,
@@ -155,6 +186,8 @@ export const startingGames = [
     date: "2027-03-14",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 19,
@@ -162,6 +195,8 @@ export const startingGames = [
     date: "2027-03-21",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 20,
@@ -169,6 +204,8 @@ export const startingGames = [
     date: "2027-04-07",
     time: "7:00 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
   {
     id: 21,
@@ -176,6 +213,8 @@ export const startingGames = [
     date: "2027-04-11",
     time: "5:30 PM",
     status: "draft",
+    preseason: false,
+    cup: false,
   },
 ];
 
