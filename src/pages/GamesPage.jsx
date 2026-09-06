@@ -8,6 +8,7 @@ export default function GamesPage({
   toggleAllGames,
   bulkStatus,
   updateGameStatus,
+  updateGameIndicator,
   deleteGame,
   newGame,
   setNewGame,
@@ -178,7 +179,8 @@ export default function GamesPage({
                   <th>Opponent</th>
                   <th>Date</th>
                   <th>Time</th>
-                  <th>Special</th>
+                  <th>Pre</th>
+                  <th>Cup</th>
                   <th>Status</th>
                   <th></th>
                 </tr>
@@ -201,16 +203,74 @@ export default function GamesPage({
 
                     <td className="opponent">
                       {game.opponent}
+
+                      {game.preseason && (
+                        <span
+                          style={{
+                            marginLeft: "8px",
+                            display: "inline-block",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            background: "#c62828",
+                            color: "white",
+                            fontSize: "10px",
+                            fontWeight: "800",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          PRE
+                        </span>
+                      )}
+
+                      {game.cup && (
+                        <span
+                          style={{
+                            marginLeft: "6px",
+                            display: "inline-block",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            background: "#fdb927",
+                            color: "#302044",
+                            fontSize: "10px",
+                            fontWeight: "800",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          CUP
+                        </span>
+                      )}
                     </td>
 
-                    <td>
-                      {formatDate(game.date)}
-                    </td>
+                    <td>{formatDate(game.date)}</td>
 
                     <td>{game.time}</td>
 
                     <td>
-                      {game.note || "—"}
+                      <input
+                        type="checkbox"
+                        checked={Boolean(game.preseason)}
+                        onChange={(event) =>
+                          updateGameIndicator(
+                            game.id,
+                            "preseason",
+                            event.target.checked
+                          )
+                        }
+                      />
+                    </td>
+
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(game.cup)}
+                        onChange={(event) =>
+                          updateGameIndicator(
+                            game.id,
+                            "cup",
+                            event.target.checked
+                          )
+                        }
+                      />
                     </td>
 
                     <td>
