@@ -1,386 +1,154 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./styles.css";
-
-import { startingGames, startingMembers } from "./data/seasonData";
-
-import DraftRoom from "./pages/DraftRoom";
-import GamesPage from "./pages/GamesPage";
-import SeasonMembersPage from "./pages/SeasonMembersPage";
 import Commissioner from "./pages/Commissioner";
 import CommissionerLogin from "./pages/CommissionerLogin";
+import DraftRoom from "./pages/DraftRoom";
+import GamesPage from "./pages/GamesPage";
+import MemberLogin from "./pages/MemberLogin";
+import MyGames from "./pages/MyGames";
+import SeasonMembersPage from "./pages/SeasonMembersPage";
+import useLakersData from "./hooks/useLakersData";
+import { supabase, supabaseConfigured } from "./lib/supabase";
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [page, setPage] = useState("draft");
-
-  const [players, setPlayers] = useState(startingMembers);
-  const [games, setGames] = useState(startingGames);
-
-  const [draftOrder, setDraftOrder] = useState(
-    startingMembers.filter((player) => player.status === "active")
-  );
-
+  const [mode, setMode] = useState("real");
   const [commissionerUnlocked, setCommissionerUnlocked] = useState(false);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
-
-  const [draftStarted, setDraftStarted] = useState(false);
-  const [draftPaused, setDraftPaused] = useState(false);
-  const [checkInOpen, setCheckInOpen] = useState(false);
-
-  const [clockSeconds, setClockSeconds] = useState(90);
-
   const [newPlayer, setNewPlayer] = useState("");
-
-  const [newGame, setNewGame] = useState({
-    opponent: "",
-    date: "",
-    time: "7:00 PM",
-  });
-
+  const [newGame, setNewGame] = useState({ opponent: "", date: "", time: "7:00 PM" });
   const [selectedGames, setSelectedGames] = useState([]);
+  const draft = useLakersData(session, mode);
 
-  const draftGames = useMemo(
-    () => games.filter((game) => game.status === "draft"),
-    [games]
-  );
+  useEffect(() => {
+    if (!supabase) {
+      setAuthReady(true);
+      return undefined;
+    }
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthReady(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setCommissionerUnlocked(false);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
-  const currentPicker = draftOrder[0];
+  const isCommissioner = draft.profile?.role === "commissioner";
 
   function unlockCommissioner(event) {
     event.preventDefault();
-
-    if (pin === "2424") {
+    if (pin === "2424" && isCommissioner) {
       setCommissionerUnlocked(true);
       setPin("");
       setPinError("");
     } else {
-      setPinError("Incorrect Commissioner PIN.");
+      setPinError("Incorrect Commissioner credentials.");
     }
   }
 
-  function updateGameStatus(id, status) {
-    setGames((currentGames) =>
-      currentGames.map((game) =>
-        game.id === id ? { ...game, status } : game
-      )
-    );
+  async function signOut() {
+    await supabase.auth.signOut();
+    setPage("draft");
   }
 
-  function updateGameIndicator(id, indicator, checked) {
-    setGames((currentGames) =>
-      currentGames.map((game) =>
-        game.id === id
-          ? {
-              ...game,
-              [indicator]: checked,
-            }
-          : game
-      )
-    );
-  }
-
-  function addGame(event) {
+  async function addGame(event) {
     event.preventDefault();
-
-    if (!newGame.opponent.trim() || !newGame.date) {
-      return;
-    }
-
-    const game = {
-      id: Date.now(),
-      opponent: newGame.opponent.trim(),
-      date: newGame.date,
-      time: newGame.time,
-      status: "draft",
-      preseason: false,
-      cup: false,
-    };
-
-    setGames((currentGames) => [...currentGames, game]);
-
-    setNewGame({
-      opponent: "",
-      date: "",
-      time: "7:00 PM",
-    });
+    if (!newGame.opponent.trim() || !newGame.date) return;
+    const { error } = await supabase.from("lakers_games").insert({ season_id: draft.season.id,
+      opponent: newGame.opponent.trim(), game_date: newGame.date, game_time: newGame.time,
+      status: "draft", preseason: false, cup: false });
+    if (error) return window.alert(error.message);
+    setNewGame({ opponent: "", date: "", time: "7:00 PM" });
+    await draft.refresh();
   }
 
-  function deleteGame(id) {
-    setGames((currentGames) =>
-      currentGames.filter((game) => game.id !== id)
-    );
+  async function updateGame(id, values) {
+    const { error } = await supabase.from("lakers_games").update(values).eq("id", id);
+    if (error) return window.alert(error.message);
+    await draft.refresh();
+  }
 
-    setSelectedGames((current) =>
-      current.filter((gameId) => gameId !== id)
-    );
+  async function deleteGame(id) {
+    if (!window.confirm("Delete this game from the inventory?")) return;
+    const { error } = await supabase.from("lakers_games").delete().eq("id", id);
+    if (error) return window.alert(error.message);
+    setSelectedGames((current) => current.filter((gameId) => gameId !== id));
+    await draft.refresh();
+  }
+
+  async function bulkStatus(status) {
+    const { error } = await supabase.from("lakers_games").update({ status }).in("id", selectedGames);
+    if (error) return window.alert(error.message);
+    setSelectedGames([]);
+    await draft.refresh();
+  }
+
+  async function addPlayer(event) {
+    event.preventDefault();
+    if (!newPlayer.trim()) return;
+    const { error } = await supabase.from("lakers_season_members").insert({ season_id: draft.season.id,
+      name: newPlayer.trim(), status: "active", games_allowed: 5 });
+    if (error) return window.alert(error.message);
+    setNewPlayer("");
+    await draft.refresh();
+  }
+
+  async function updatePlayerStatus(id, status) {
+    const { error } = await supabase.from("lakers_season_members").update({ status }).eq("id", id);
+    if (error) return window.alert(error.message);
+    await draft.refresh();
+  }
+
+  async function removePlayer(id) {
+    if (!window.confirm("Remove this season member?")) return;
+    const { error } = await supabase.from("lakers_season_members").delete().eq("id", id);
+    if (error) return window.alert(error.message);
+    await draft.refresh();
   }
 
   function toggleGameSelection(id) {
-    setSelectedGames((current) =>
-      current.includes(id)
-        ? current.filter((gameId) => gameId !== id)
-        : [...current, id]
-    );
+    setSelectedGames((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
-  function toggleAllGames() {
-    if (
-      games.length > 0 &&
-      selectedGames.length === games.length
-    ) {
-      setSelectedGames([]);
-    } else {
-      setSelectedGames(games.map((game) => game.id));
-    }
-  }
+  if (!supabaseConfigured) return <main className="commissioner-login"><div className="login-card"><div className="commissioner-badge">SETUP REQUIRED</div><h2>Connect Supabase</h2><p>Add the approved Lakers Draft Room values to the local environment file before signing in.</p></div></main>;
+  if (!authReady) return <main className="loading-state">Loading…</main>;
+  if (!session) return <MemberLogin />;
+  if (draft.loading && !draft.season) return <main className="loading-state">Loading Draft Room…</main>;
+  if (draft.error) return <main className="commissioner-login"><div className="login-card"><h2>Draft Room unavailable</h2><div className="error-text">{draft.error}</div><button className="primary-button" onClick={draft.refresh}>Try Again</button></div></main>;
 
-  function bulkStatus(status) {
-    setGames((currentGames) =>
-      currentGames.map((game) =>
-        selectedGames.includes(game.id)
-          ? { ...game, status }
-          : game
-      )
-    );
+  const needsCommissionerPin = ["games", "members", "commissioner"].includes(page) && isCommissioner && !commissionerUnlocked;
 
-    setSelectedGames([]);
-  }
-
-  function addPlayer(event) {
-    event.preventDefault();
-
-    const cleanedName = newPlayer.trim();
-
-    if (!cleanedName) return;
-
-    const player = {
-      id: Date.now(),
-      name: cleanedName,
-      status: "active",
-    };
-
-    setPlayers((current) => [...current, player]);
-
-    setDraftOrder((current) => [...current, player]);
-
-    setNewPlayer("");
-  }
-
-  function removePlayer(id) {
-    setPlayers((current) =>
-      current.filter((player) => player.id !== id)
-    );
-
-    setDraftOrder((current) =>
-      current.filter((player) => player.id !== id)
-    );
-  }
-
-  function updatePlayerStatus(id, status) {
-    const player = players.find((item) => item.id === id);
-
-    setPlayers((current) =>
-      current.map((item) =>
-        item.id === id ? { ...item, status } : item
-      )
-    );
-
-    if (!player) return;
-
-    if (status === "active") {
-      setDraftOrder((current) => {
-        const alreadyIncluded = current.some(
-          (item) => item.id === id
-        );
-
-        if (alreadyIncluded) {
-          return current;
-        }
-
-        return [
-          ...current,
-          {
-            ...player,
-            status: "active",
-          },
-        ];
-      });
-    } else {
-      setDraftOrder((current) =>
-        current.filter((item) => item.id !== id)
-      );
-    }
-  }
-
-  function randomizeDraftOrder() {
-    const randomized = players.filter(
-      (player) => player.status === "active"
-    );
-
-    for (let i = randomized.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-
-      [randomized[i], randomized[j]] = [
-        randomized[j],
-        randomized[i],
-      ];
-    }
-
-    setDraftOrder(randomized);
-  }
-
-  function commissionerLogin() {
-    return (
-      <CommissionerLogin
-        pin={pin}
-        setPin={setPin}
-        error={pinError}
-        onSubmit={unlockCommissioner}
-      />
-    );
-  }
-
-  function renderPage() {
-    if (page === "draft") {
-      return (
-        <DraftRoom
-          players={draftOrder}
-          currentPicker={currentPicker}
-          games={draftGames}
-          draftStarted={draftStarted}
-          draftPaused={draftPaused}
-          checkInOpen={checkInOpen}
-          clockSeconds={clockSeconds}
-        />
-      );
-    }
-
-    if (page === "games") {
-      if (!commissionerUnlocked) {
-        return commissionerLogin();
-      }
-
-      return (
-        <GamesPage
-          games={games}
-          selectedGames={selectedGames}
-          toggleGameSelection={toggleGameSelection}
-          toggleAllGames={toggleAllGames}
-          bulkStatus={bulkStatus}
-          updateGameStatus={updateGameStatus}
-          updateGameIndicator={updateGameIndicator}
-          deleteGame={deleteGame}
-          newGame={newGame}
-          setNewGame={setNewGame}
-          addGame={addGame}
-        />
-      );
-    }
-
-    if (page === "members") {
-      if (!commissionerUnlocked) {
-        return commissionerLogin();
-      }
-
-      return (
-        <SeasonMembersPage
-          players={players}
-          newPlayer={newPlayer}
-          setNewPlayer={setNewPlayer}
-          addPlayer={addPlayer}
-          removePlayer={removePlayer}
-          updatePlayerStatus={updatePlayerStatus}
-        />
-      );
-    }
-
-    if (page === "commissioner") {
-      if (!commissionerUnlocked) {
-        return commissionerLogin();
-      }
-
-      return (
-        <Commissioner
-          draftOrder={draftOrder}
-          randomizeDraftOrder={randomizeDraftOrder}
-          clockSeconds={clockSeconds}
-          setClockSeconds={setClockSeconds}
-          checkInOpen={checkInOpen}
-          setCheckInOpen={setCheckInOpen}
-          draftStarted={draftStarted}
-          setDraftStarted={setDraftStarted}
-          draftPaused={draftPaused}
-          setDraftPaused={setDraftPaused}
-        />
-      );
-    }
-
-    return null;
-  }
-
-  return (
-    <div className="app-shell">
-      <header className="top-header">
-        <div>
-          <div className="eyebrow">
-            LAKERS SEASON TICKETS
-          </div>
-
-          <h1>Draft Room</h1>
-        </div>
-
-        <nav className="top-nav">
-          <button
-            className={
-              page === "draft"
-                ? "nav-button active"
-                : "nav-button"
-            }
-            onClick={() => setPage("draft")}
-            type="button"
-          >
-            Draft Room
-          </button>
-
-          <button
-            className={
-              page === "games"
-                ? "nav-button active"
-                : "nav-button"
-            }
-            onClick={() => setPage("games")}
-            type="button"
-          >
-            Games
-          </button>
-
-          <button
-            className={
-              page === "members"
-                ? "nav-button active"
-                : "nav-button"
-            }
-            onClick={() => setPage("members")}
-            type="button"
-          >
-            Season Members
-          </button>
-
-          <button
-            className={
-              page === "commissioner"
-                ? "nav-button active"
-                : "nav-button"
-            }
-            onClick={() => setPage("commissioner")}
-            type="button"
-          >
-            Commissioner
-          </button>
-        </nav>
-      </header>
-
-      {renderPage()}
-    </div>
-  );
+  return <div className="app-shell">
+    <header className="top-header">
+      <div><div className="eyebrow">LAKERS SEASON TICKETS</div><h1>Draft Room</h1></div>
+      <nav className="top-nav">
+        <button className={page === "draft" ? "nav-button active" : "nav-button"} onClick={() => setPage("draft")}>Draft Room</button>
+        {draft.member && <button className={page === "my-games" ? "nav-button active" : "nav-button"} onClick={() => setPage("my-games")}>My Games</button>}
+        {isCommissioner && <>
+          <button className={page === "games" ? "nav-button active" : "nav-button"} onClick={() => setPage("games")}>Games</button>
+          <button className={page === "members" ? "nav-button active" : "nav-button"} onClick={() => setPage("members")}>Season Members</button>
+          <button className={page === "commissioner" ? "nav-button active" : "nav-button"} onClick={() => setPage("commissioner")}>Commissioner</button>
+        </>}
+        <button className="nav-button" onClick={signOut}>Log Out</button>
+      </nav>
+    </header>
+    {needsCommissionerPin ? <CommissionerLogin pin={pin} setPin={setPin} error={pinError} onSubmit={unlockCommissioner} /> :
+      page === "draft" ? <DraftRoom {...draft} isCommissioner={isCommissioner} mode={mode} /> :
+      page === "my-games" ? <MyGames member={draft.member} picks={draft.picks} /> :
+      page === "games" && isCommissioner ? <GamesPage games={draft.games} selectedGames={selectedGames}
+        toggleGameSelection={toggleGameSelection} toggleAllGames={() => setSelectedGames(selectedGames.length === draft.games.length ? [] : draft.games.map((game) => game.id))}
+        bulkStatus={bulkStatus} updateGameStatus={(id, status) => updateGame(id, { status })}
+        updateGameIndicator={(id, indicator, checked) => updateGame(id, { [indicator]: checked })}
+        deleteGame={deleteGame} newGame={newGame} setNewGame={setNewGame} addGame={addGame} /> :
+      page === "members" && isCommissioner ? <SeasonMembersPage players={draft.members} newPlayer={newPlayer} setNewPlayer={setNewPlayer}
+        addPlayer={addPlayer} removePlayer={removePlayer} updatePlayerStatus={updatePlayerStatus} /> :
+      page === "commissioner" && isCommissioner ? <Commissioner {...draft} mode={mode} setMode={setMode} /> :
+      <DraftRoom {...draft} isCommissioner={isCommissioner} mode={mode} />}
+  </div>;
 }
