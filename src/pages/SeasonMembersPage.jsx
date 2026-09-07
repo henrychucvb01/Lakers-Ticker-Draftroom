@@ -5,7 +5,6 @@ export default function SeasonMembersPage({
   newPlayer,
   setNewPlayer,
   addPlayer,
-  removePlayer,
   updatePlayerStatus,
 }) {
   const activeCount = players.filter(
@@ -94,7 +93,6 @@ export default function SeasonMembersPage({
                   <th>Member</th>
                   <th>Status</th>
                   <th>Draft Eligible</th>
-                  <th></th>
                 </tr>
               </thead>
 
@@ -120,10 +118,6 @@ export default function SeasonMembersPage({
                           Active
                         </option>
 
-                        <option value="pending">
-                          Pending
-                        </option>
-
                         <option value="inactive">
                           Inactive
                         </option>
@@ -136,17 +130,6 @@ export default function SeasonMembersPage({
                         : "No"}
                     </td>
 
-                    <td>
-                      <button
-                        className="delete-button"
-                        type="button"
-                        onClick={() =>
-                          removePlayer(player.id)
-                        }
-                      >
-                        Remove
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </tbody>

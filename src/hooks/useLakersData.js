@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 
-export default function useLakersData(session, mode) {
+export default function useLakersData(session, mode, identity) {
   const [data, setData] = useState({
     profile: null,
     season: null,
@@ -11,6 +11,8 @@ export default function useLakersData(session, mode) {
     runs: [],
     order: [],
     picks: [],
+    preferences: [],
+    paymentSummary: [],
   });
   const [loading, setLoading] = useState(Boolean(session));
   const [error, setError] = useState("");
@@ -42,12 +44,16 @@ export default function useLakersData(session, mode) {
     }
 
     const seasonId = seasonResult.data.id;
-    const [membersResult, gamesResult, runsResult] = await Promise.all([
+    const [membersResult, gamesResult, runsResult, preferencesResult, paymentsResult] = await Promise.all([
       supabase.from("lakers_season_members").select("*").eq("season_id", seasonId).order("created_at"),
       supabase.from("lakers_games").select("*").eq("season_id", seasonId).order("game_date"),
       supabase.from("lakers_draft_runs").select("*").eq("season_id", seasonId),
+      identity?.member_id
+        ? supabase.rpc("lakers_get_my_preferences")
+        : Promise.resolve({ data: [], error: null }),
+      supabase.rpc("lakers_get_payment_summary"),
     ]);
-    const firstError = membersResult.error || gamesResult.error || runsResult.error;
+    const firstError = membersResult.error || gamesResult.error || runsResult.error || preferencesResult.error || paymentsResult.error;
     if (firstError) {
       setError(firstError.message);
       setLoading(false);
@@ -79,8 +85,9 @@ export default function useLakersData(session, mode) {
     setData({
       profile: profileResult.data,
       season: seasonResult.data,
-      member:
-        membersResult.data.find((member) => member.user_id === session.user.id) || null,
+      member: membersResult.data.find((member) =>
+        member.id === identity?.member_id || member.user_id === session.user.id
+      ) || null,
       members: membersResult.data.map((member) => ({
         ...member,
         gamesAllowed: member.games_allowed,
@@ -93,10 +100,17 @@ export default function useLakersData(session, mode) {
       runs: runsResult.data,
       order: orderResult.data,
       picks: picksResult.data,
+      preferences: preferencesResult.data || [],
+      paymentSummary: (paymentsResult.data || []).map((payment) => ({
+        ...payment,
+        package_cost: Number(payment.package_cost),
+        cost_per_game: Number(payment.cost_per_game),
+        amount_due: Number(payment.amount_due),
+      })),
     });
     setError("");
     setLoading(false);
-  }, [session, mode]);
+  }, [session, mode, identity]);
 
   useEffect(() => {
     refresh();
@@ -111,6 +125,8 @@ export default function useLakersData(session, mode) {
       .on("postgres_changes", { event: "*", schema: "public", table: "lakers_draft_order_entries" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "lakers_games" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "lakers_season_members" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_season_financial_settings" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_member_payments" }, refresh)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -147,7 +163,12 @@ export default function useLakersData(session, mode) {
     randomize: () => rpc("lakers_randomize_draft_order", { requested_run_id: run.id }),
     reveal: () => rpc("lakers_reveal_draft_order", { requested_run_id: run.id }),
     completeReveal: () => rpc("lakers_complete_draft_reveal", { requested_run_id: run.id }),
-    makePick: (gameId) => rpc("lakers_make_pick", { requested_run_id: run.id, requested_game_id: gameId }),
+    makePick: async (gameId) => {
+      const result = await rpc("lakers_make_pick", { requested_run_id: run.id, requested_game_id: gameId });
+      if (!result) throw new Error("That turn expired. The next picker is now active.");
+      return result;
+    },
+    advanceExpiredTurn: () => rpc("lakers_advance_expired_turn", { requested_run_id: run.id }),
     control: (action, clock = null) => rpc("lakers_set_draft_control", {
       requested_run_id: run.id,
       requested_action: action,
@@ -157,6 +178,34 @@ export default function useLakersData(session, mode) {
     updateAllowance: (memberId, allowance) => rpc("lakers_update_member_allowance", {
       requested_member_id: memberId,
       requested_allowance: allowance,
+    }),
+    addMember: (memberName) => rpc("lakers_add_season_member", {
+      requested_name: memberName,
+      requested_allowance: 5,
+    }),
+    setMemberStatus: (memberId, memberStatus) => rpc("lakers_set_member_status", {
+      requested_member_id: memberId,
+      requested_status: memberStatus,
+    }),
+    updateFinancialSettings: (packageCost, totalPackageGames) => rpc("lakers_update_financial_settings", {
+      requested_package_cost: packageCost,
+      requested_total_package_games: totalPackageGames,
+    }),
+    setPaymentPaid: (memberId, paid) => rpc("lakers_set_member_payment", {
+      requested_member_id: memberId,
+      requested_paid: paid,
+    }),
+    resetMemberPin: (memberId, memberPin) => rpc("lakers_reset_member_pin", {
+      requested_member_id: memberId,
+      requested_pin: memberPin,
+    }),
+    changeSeasonAccessCode: (accessCode) => rpc("lakers_change_season_access_code", {
+      requested_code: accessCode,
+    }),
+    setPreference: (gameId, favorite, rank) => rpc("lakers_set_my_preference", {
+      requested_game_id: gameId,
+      requested_favorite: favorite,
+      requested_rank: rank,
     }),
   };
 }
