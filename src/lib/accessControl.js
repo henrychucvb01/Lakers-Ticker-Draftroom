@@ -7,3 +7,7 @@ export function canAccessPage(page, isCommissioner) {
 export function resolvePermittedPage(page, isCommissioner) {
   return canAccessPage(page, isCommissioner) ? page : "draft";
 }
+
+export function didAuthenticatedUserChange(currentUserId, nextUserId) {
+  return (currentUserId || null) !== (nextUserId || null);
+}

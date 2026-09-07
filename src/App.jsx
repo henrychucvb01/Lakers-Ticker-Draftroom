@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./styles.css";
 import Commissioner from "./pages/Commissioner";
 import DraftRoom from "./pages/DraftRoom";
@@ -7,7 +7,7 @@ import MemberLogin from "./pages/MemberLogin";
 import MyGames from "./pages/MyGames";
 import SeasonMembersPage from "./pages/SeasonMembersPage";
 import useLakersData from "./hooks/useLakersData";
-import { resolvePermittedPage } from "./lib/accessControl";
+import { didAuthenticatedUserChange, resolvePermittedPage } from "./lib/accessControl";
 import { supabase, supabaseConfigured } from "./lib/supabase";
 
 export default function App() {
@@ -20,6 +20,7 @@ export default function App() {
   const [newPlayer, setNewPlayer] = useState("");
   const [newGame, setNewGame] = useState({ opponent: "", date: "", time: "7:00 PM" });
   const [selectedGames, setSelectedGames] = useState([]);
+  const sessionUserId = useRef(null);
   const draft = useLakersData(identity ? session : null, mode, identity);
 
   useEffect(() => {
@@ -28,13 +29,19 @@ export default function App() {
       return undefined;
     }
     supabase.auth.getSession().then(({ data }) => {
+      sessionUserId.current = data.session?.user?.id || null;
       setSession(data.session);
       setAuthReady(true);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const nextUserId = nextSession?.user?.id || null;
+      const userChanged = didAuthenticatedUserChange(sessionUserId.current, nextUserId);
+      sessionUserId.current = nextUserId;
       setSession(nextSession);
-      setIdentity(null);
-      setIdentityReady(!nextSession);
+      if (userChanged) {
+        setIdentity(null);
+        setIdentityReady(!nextSession);
+      }
     });
     return () => listener.subscription.unsubscribe();
   }, []);
