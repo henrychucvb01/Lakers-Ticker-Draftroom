@@ -4,6 +4,7 @@ import {
   buildSnakePickSlots,
   canMemberPick,
   calculateMemberAmountDue,
+  countRealDraftedGames,
   filterDraftBoardGames,
   getGameTimeMinutes,
   getDraftCompletionKey,
@@ -34,6 +35,44 @@ test("builds a snake order and skips members after their allowance", () => {
 test("calculates member payment from package cost and real drafted games", () => {
   assert.equal(calculateMemberAmountDue(4200, 21, 5), 1000);
   assert.equal(calculateMemberAmountDue(4200, 0, 5), 0);
+});
+
+test("test picks never create a real payment obligation", () => {
+  const runs = [{ id: "real-run", mode: "real" }, { id: "test-run", mode: "test" }];
+  const picks = Array.from({ length: 6 }, (_, index) => ({
+    id: `test-${index}`,
+    draft_run_id: "test-run",
+    member_id: "huy",
+  }));
+  const gamesDrafted = countRealDraftedGames(picks, runs, "huy");
+  assert.equal(gamesDrafted, 0);
+  assert.equal(calculateMemberAmountDue(4200, 21, gamesDrafted), 0);
+});
+
+test("each saved real pick increments games drafted and amount due", () => {
+  const runs = [{ id: "real-run", mode: "real" }, { id: "test-run", mode: "test" }];
+  const picks = [
+    { id: "test-1", draft_run_id: "test-run", member_id: "huy" },
+    { id: "real-1", draft_run_id: "real-run", member_id: "huy" },
+    { id: "real-2", draft_run_id: "real-run", member_id: "huy" },
+    { id: "real-other", draft_run_id: "real-run", member_id: "jason" },
+  ];
+  assert.equal(countRealDraftedGames(picks.slice(0, 2), runs, "huy"), 1);
+  assert.equal(calculateMemberAmountDue(4200, 21, 1), 200);
+  assert.equal(countRealDraftedGames(picks, runs, "huy"), 2);
+  assert.equal(calculateMemberAmountDue(4200, 21, 2), 400);
+});
+
+test("real payment totals remain deterministic after data reload", () => {
+  const runs = [{ id: "real-run", mode: "real" }];
+  const storedPicks = [
+    { id: "real-1", draft_run_id: "real-run", member_id: "huy" },
+    { id: "real-2", draft_run_id: "real-run", member_id: "huy" },
+  ];
+  const reloadedPicks = JSON.parse(JSON.stringify(storedPicks));
+  const gamesDrafted = countRealDraftedGames(reloadedPicks, runs, "huy");
+  assert.equal(gamesDrafted, 2);
+  assert.equal(calculateMemberAmountDue(4200, 21, gamesDrafted), 400);
 });
 
 test("calculates a backend deadline countdown without resetting it", () => {

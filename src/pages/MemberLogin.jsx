@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { isValidMemberPin, normalizeMemberPin } from "../lib/memberPin";
+import { isValidMemberPin, normalizeMemberPin, preserveSelectedMemberId } from "../lib/memberPin";
 
 export default function MemberLogin({ session, onLogin }) {
   const [accessCode, setAccessCode] = useState("");
@@ -20,8 +20,9 @@ export default function MemberLogin({ session, onLogin }) {
   async function loadMembers() {
     const result = await supabase.rpc("lakers_member_login_options");
     if (result.error) throw result.error;
-    setMembers(result.data || []);
-    setMemberId((result.data || [])[0]?.member_id || "");
+    const availableMembers = result.data || [];
+    setMembers(availableMembers);
+    setMemberId((currentMemberId) => preserveSelectedMemberId(availableMembers, currentMemberId));
   }
 
   async function ensureAnonymousDeviceSession() {

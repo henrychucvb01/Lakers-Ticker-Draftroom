@@ -77,9 +77,10 @@ export default function MyGames({ member, games, picks, preferences, run, mode,
   return <main className="commissioner-layout">
     <section className="commissioner-main full-width">
       <div className="panel my-results-panel">
-        <div className="panel-title-row"><h2>MY DRAFT RESULTS</h2><span className="game-count">{myPicks.length} drafted</span></div>
+        <div className="panel-title-row"><h2>MY DRAFT RESULTS</h2><span className="game-count">{myPicks.length} {mode === "test" ? "test picks" : "drafted"}</span></div>
+        {mode === "test" && <div className="commissioner-help">Test picks do not affect real payment amounts or payment status.</div>}
         <div className="member-payment-summary">
-          <div><span>Games Drafted</span><strong>{payment?.games_drafted || 0}</strong></div>
+          <div><span>Real Games Drafted</span><strong>{payment?.games_drafted || 0}</strong></div>
           <div><span>Cost Per Game</span><strong>{formatCurrency(payment?.cost_per_game)}</strong></div>
           <div><span>Amount Due</span><strong>{formatCurrency(payment?.amount_due)}</strong></div>
           <div><span>Payment Status</span><strong className={payment?.is_paid ? "payment-paid" : "payment-unpaid"}>{payment?.is_paid ? "PAID" : "UNPAID"}</strong></div>

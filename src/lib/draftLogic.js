@@ -121,6 +121,11 @@ export function calculateMemberAmountDue(packageCost, totalPackageGames, gamesDr
   return (total / games) * drafted;
 }
 
+export function countRealDraftedGames(picks, runs, memberId) {
+  const realRunIds = new Set(runs.filter((run) => run.mode === "real").map((run) => run.id));
+  return picks.filter((pick) => pick.member_id === memberId && realRunIds.has(pick.draft_run_id)).length;
+}
+
 export function formatCurrency(value) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value) || 0);
 }
