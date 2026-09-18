@@ -1,19 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../data/seasonData";
-import { getDraftCompletionKey, getRemainingSeconds, isTurnOpen } from "../lib/draftLogic";
+import { getDraftCompletionKey } from "../lib/draftLogic";
 
 function Indicator({ type }) {
   return <span className={`game-indicator ${type.toLowerCase()}`}>{type}</span>;
 }
 
 export default function DraftRoom({ members, member, run, order, picks, availableGames,
-  isCommissioner, mode, reveal, completeReveal, makePick, advanceExpiredTurn, control }) {
+  isCommissioner, mode, realtimeStatus, reveal, completeReveal, makePick, control }) {
   const [revealedCount, setRevealedCount] = useState(0);
   const [message, setMessage] = useState("");
-  const [clockNow, setClockNow] = useState(Date.now());
   const [showConfetti, setShowConfetti] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
-  const expiryRequestedFor = useRef(null);
   const currentPicker = members.find((item) => item.id === run?.current_member_id) || null;
   const isMyTurn = Boolean(run?.status === "live" && member?.id === run.current_member_id);
   const commissionerCanTest = Boolean(isCommissioner && mode === "test" && run?.status === "live");
@@ -22,30 +20,8 @@ export default function DraftRoom({ members, member, run, order, picks, availabl
   const rounds = useMemo(() => Math.max(0, ...members.filter((item) => item.status === "active").map((item) => item.gamesAllowed)), [members]);
   const myPicks = useMemo(() => picks.filter((pick) => pick.member_id === member?.id), [picks, member?.id]);
   const recentPicks = useMemo(() => [...picks].slice(-5).reverse(), [picks]);
-  const remainingSeconds = run?.status === "live"
-    ? getRemainingSeconds(run.turn_deadline_at, clockNow)
-    : run?.status === "paused" && run.paused_clock_seconds != null
-      ? run.paused_clock_seconds
-      : run?.pick_clock_seconds || 90;
-  const mayPick = (isMyTurn || commissionerCanTest) && isTurnOpen(run, clockNow);
-  const timerDisplay = run?.status === "live" || run?.status === "paused"
-    ? `${String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}:${String(remainingSeconds % 60).padStart(2, "0")}`
-    : "NOT STARTED";
+  const mayPick = isMyTurn || commissionerCanTest;
   const commissionerCanStart = Boolean(isCommissioner && run?.status === "setup" && run?.reveal_completed_at);
-
-  useEffect(() => {
-    setClockNow(Date.now());
-    if (run?.status !== "live" || !run?.turn_deadline_at) return undefined;
-    const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [run?.status, run?.turn_deadline_at]);
-
-  useEffect(() => {
-    if (run?.status !== "live" || !run?.turn_deadline_at || remainingSeconds !== 0) return;
-    if (expiryRequestedFor.current === run.turn_deadline_at) return;
-    expiryRequestedFor.current = run.turn_deadline_at;
-    advanceExpiredTurn().catch((error) => setMessage(error.message));
-  }, [run?.status, run?.turn_deadline_at, remainingSeconds, advanceExpiredTurn]);
 
   useEffect(() => {
     if (run?.status !== "completed" || !run?.completed_at) return undefined;
@@ -94,8 +70,8 @@ export default function DraftRoom({ members, member, run, order, picks, availabl
   return <main className="draft-room-page">
     <section className={`compact-draft-status panel ${showTurnAlert ? "your-turn-pulse" : ""}`}>
       <div className="compact-picker"><span className="small-label">CURRENT PICKER</span><strong>{currentPicker?.name || "Waiting"}</strong><span>Pick #{run?.overall_pick || "—"}</span></div>
-      <div className="compact-clock"><span className="small-label">PICK CLOCK</span><strong>{timerDisplay}</strong></div>
       <div className="compact-status-copy"><span className="small-label">DRAFT STATUS</span><strong>{statusMessage}</strong></div>
+      <span className={`realtime-status ${realtimeStatus === "SUBSCRIBED" ? "connected" : "connecting"}`}>{realtimeStatus === "SUBSCRIBED" ? "LIVE SYNC" : "RECONNECTING…"}</span>
       {mode === "test" && <span className="test-mode-pill">TEST MODE</span>}
       {showTurnAlert && <div className="compact-turn-alert">YOUR TURN{commissionerCanTest && currentPicker ? ` — SIMULATING ${currentPicker.name.toUpperCase()}` : ""}</div>}
       {run?.order_generated_at && !run.reveal_started_at && <button className="primary-button compact-reveal-button" type="button" onClick={() => reveal().catch((error) => setMessage(error.message))}>REVEAL DRAFT ORDER</button>}

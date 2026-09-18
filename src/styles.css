@@ -191,7 +191,7 @@ button:disabled {
 
 .compact-draft-status {
   display: grid;
-  grid-template-columns: minmax(150px, 0.8fr) 120px minmax(260px, 1.8fr) auto;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(260px, 1.8fr) auto auto;
   gap: 16px;
   align-items: center;
   padding: 14px 16px;
@@ -199,7 +199,6 @@ button:disabled {
 }
 
 .compact-picker,
-.compact-clock,
 .compact-status-copy {
   display: flex;
   flex-direction: column;
@@ -216,15 +215,17 @@ button:disabled {
   font-size: 12px;
 }
 
-.compact-clock strong {
-  color: #fdb927;
-  font-size: 25px;
-  letter-spacing: 1px;
+.realtime-status {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
-.compact-clock strong:not(:only-child) {
-  line-height: 1.1;
-}
+.realtime-status.connected { color: #75dc7c; }
+.realtime-status.connecting { color: #ffd15c; }
 
 .compact-start-button {
   width: auto;
@@ -943,6 +944,47 @@ button:disabled {
   color: #fff;
 }
 
+.manual-order-control,
+.takeover-form {
+  margin: 8px 0 12px;
+  padding: 12px;
+  border: 1px solid #7443a0;
+  border-radius: 6px;
+  background: #3b165f;
+}
+
+.manual-order-control > strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #fdb927;
+  font-size: 12px;
+}
+
+.manual-order-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.manual-order-row button {
+  min-width: 34px;
+  margin-left: 5px;
+  border: 1px solid #fdb927;
+  border-radius: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  color: #fdb927;
+  font-weight: 900;
+}
+
+.manual-order-row button:disabled { opacity: 0.35; }
+
+.takeover-form label { color: #fff; }
+.takeover-form .text-input { margin-top: 5px; }
+
 .status-value {
   margin: 3px 0 14px;
   font-weight: 700;
@@ -1290,7 +1332,7 @@ button:disabled {
   }
 
   .compact-draft-status {
-    grid-template-columns: 1fr 120px;
+    grid-template-columns: 1fr auto;
   }
 
   .compact-status-copy {
@@ -1360,7 +1402,7 @@ button:disabled {
   }
 
   .compact-draft-status {
-    grid-template-columns: 1fr 100px;
+    grid-template-columns: 1fr auto;
     gap: 10px;
     padding: 12px;
   }

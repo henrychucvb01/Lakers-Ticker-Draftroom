@@ -58,19 +58,6 @@ export function canMemberPick({
   );
 }
 
-export function getRemainingSeconds(deadline, now = Date.now()) {
-  if (!deadline) return null;
-  return Math.max(0, Math.ceil((new Date(deadline).getTime() - now) / 1000));
-}
-
-export function isTurnOpen(run, now = Date.now()) {
-  return Boolean(
-    run?.status === "live" &&
-    run?.turn_deadline_at &&
-    new Date(run.turn_deadline_at).getTime() > now
-  );
-}
-
 export function getDraftCompletionKey(run) {
   return run?.id && run?.completed_at
     ? `lakers-draft-complete-${run.id}-${run.completed_at}`

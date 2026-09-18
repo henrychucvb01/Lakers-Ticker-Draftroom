@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 export default function useLakersData(session, mode, identity) {
@@ -16,9 +16,14 @@ export default function useLakersData(session, mode, identity) {
   });
   const [loading, setLoading] = useState(Boolean(session));
   const [error, setError] = useState("");
+  const [realtimeStatus, setRealtimeStatus] = useState("CONNECTING");
+  const refreshGeneration = useRef(0);
+  const refreshRef = useRef(null);
 
   const refresh = useCallback(async () => {
     if (!supabase || !session?.user) return;
+    const generation = refreshGeneration.current + 1;
+    refreshGeneration.current = generation;
     setLoading(true);
 
     const profileResult = await supabase
@@ -27,6 +32,7 @@ export default function useLakersData(session, mode, identity) {
       .eq("user_id", session.user.id)
       .maybeSingle();
     if (profileResult.error) {
+      if (generation !== refreshGeneration.current) return;
       setError(profileResult.error.message);
       setLoading(false);
       return;
@@ -38,6 +44,7 @@ export default function useLakersData(session, mode, identity) {
       .eq("is_active", true)
       .maybeSingle();
     if (seasonResult.error || !seasonResult.data) {
+      if (generation !== refreshGeneration.current) return;
       setError(seasonResult.error?.message || "No active Lakers season is configured.");
       setLoading(false);
       return;
@@ -55,6 +62,7 @@ export default function useLakersData(session, mode, identity) {
     ]);
     const firstError = membersResult.error || gamesResult.error || runsResult.error || preferencesResult.error || paymentsResult.error;
     if (firstError) {
+      if (generation !== refreshGeneration.current) return;
       setError(firstError.message);
       setLoading(false);
       return;
@@ -77,11 +85,13 @@ export default function useLakersData(session, mode, identity) {
       : [{ data: [], error: null }, { data: [], error: null }];
 
     if (orderResult.error || picksResult.error) {
+      if (generation !== refreshGeneration.current) return;
       setError(orderResult.error?.message || picksResult.error?.message);
       setLoading(false);
       return;
     }
 
+    if (generation !== refreshGeneration.current) return;
     setData({
       profile: profileResult.data,
       season: seasonResult.data,
@@ -113,25 +123,40 @@ export default function useLakersData(session, mode, identity) {
   }, [session, mode, identity]);
 
   useEffect(() => {
-    refresh();
+    refreshRef.current = refresh;
   }, [refresh]);
 
   useEffect(() => {
-    if (!supabase || !session?.user) return undefined;
+    refresh();
+  }, [refresh]);
+
+  const subscribedRunId = useMemo(
+    () => data.runs.find((item) => item.mode === mode)?.id || null,
+    [data.runs, mode]
+  );
+
+  useEffect(() => {
+    if (!supabase || !session?.user || !data.season?.id || !subscribedRunId) return undefined;
+    const seasonFilter = `season_id=eq.${data.season.id}`;
+    const runFilter = `draft_run_id=eq.${subscribedRunId}`;
+    const synchronize = () => refreshRef.current?.();
     const channel = supabase
-      .channel(`lakers-draft-${mode}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_draft_runs" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_draft_picks" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_draft_order_entries" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_games" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_season_members" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_season_financial_settings" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_member_payments" }, refresh)
-      .subscribe();
+      .channel(`lakers-draft-${mode}-${data.season.id}-${session.user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_draft_runs", filter: seasonFilter }, synchronize)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_draft_picks", filter: runFilter }, synchronize)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_draft_order_entries", filter: runFilter }, synchronize)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_games", filter: seasonFilter }, synchronize)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_season_members", filter: seasonFilter }, synchronize)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_season_financial_settings", filter: seasonFilter }, synchronize)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_member_payments", filter: seasonFilter }, synchronize)
+      .subscribe((status) => {
+        setRealtimeStatus(status);
+        if (status === "SUBSCRIBED") synchronize();
+      });
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session, mode, refresh]);
+  }, [session?.user?.id, mode, data.season?.id, subscribedRunId]);
 
   const run = useMemo(
     () => data.runs.find((item) => item.mode === mode) || null,
@@ -159,16 +184,29 @@ export default function useLakersData(session, mode, identity) {
     availableGames,
     loading,
     error,
+    realtimeStatus,
     refresh,
     randomize: () => rpc("lakers_randomize_draft_order", { requested_run_id: run.id }),
+    setManualOrder: (memberIds) => rpc("lakers_set_draft_order", {
+      requested_run_id: run.id,
+      requested_member_ids: memberIds,
+    }),
     reveal: () => rpc("lakers_reveal_draft_order", { requested_run_id: run.id }),
     completeReveal: () => rpc("lakers_complete_draft_reveal", { requested_run_id: run.id }),
     makePick: async (gameId) => {
       const result = await rpc("lakers_make_pick", { requested_run_id: run.id, requested_game_id: gameId });
-      if (!result) throw new Error("That turn expired. The next picker is now active.");
       return result;
     },
-    advanceExpiredTurn: () => rpc("lakers_advance_expired_turn", { requested_run_id: run.id }),
+    setTakeover: (enabled) => rpc("lakers_set_draft_control", {
+      requested_run_id: run.id,
+      requested_action: enabled ? "takeover-on" : "takeover-off",
+      requested_clock_seconds: null,
+    }),
+    takeoverPick: (memberId, gameId) => rpc("lakers_commissioner_make_pick", {
+      requested_run_id: run.id,
+      requested_member_id: memberId,
+      requested_game_id: gameId,
+    }),
     control: (action, clock = null) => rpc("lakers_set_draft_control", {
       requested_run_id: run.id,
       requested_action: action,

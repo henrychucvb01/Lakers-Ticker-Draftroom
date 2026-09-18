@@ -2,9 +2,9 @@ import React, { useEffect, useState } from "react";
 import { isValidMemberPin, normalizeMemberPin } from "../lib/memberPin";
 import { formatCurrency, getAllowanceSummary } from "../lib/draftLogic";
 
-export default function Commissioner({ members, games, picks, run, mode, setMode, randomize,
+export default function Commissioner({ members, games, picks, run, order, availableGames, mode, setMode, randomize, setManualOrder,
   control, reset, updateAllowance, resetMemberPin, changeSeasonAccessCode,
-  paymentSummary, updateFinancialSettings, setPaymentPaid }) {
+  paymentSummary, updateFinancialSettings, setPaymentPaid, setTakeover, takeoverPick }) {
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
   const [pinEntries, setPinEntries] = useState({});
@@ -12,8 +12,12 @@ export default function Commissioner({ members, games, picks, run, mode, setMode
   const [confirmAccessCode, setConfirmAccessCode] = useState("");
   const [packageCost, setPackageCost] = useState("");
   const [totalPackageGames, setTotalPackageGames] = useState("");
+  const [manualOrderIds, setManualOrderIds] = useState([]);
+  const [takeoverMemberId, setTakeoverMemberId] = useState("");
+  const [takeoverGameId, setTakeoverGameId] = useState("");
   const allowance = getAllowanceSummary(members, games);
   const invalidRealConfiguration = mode === "real" && !allowance.valid;
+  const eligibleMembers = members.filter((member) => member.status === "active" && member.gamesAllowed > 0);
 
   useEffect(() => {
     const settings = paymentSummary[0];
@@ -21,6 +25,17 @@ export default function Commissioner({ members, games, picks, run, mode, setMode
     setPackageCost(String(settings.package_cost));
     setTotalPackageGames(String(settings.total_package_games));
   }, [paymentSummary]);
+
+  useEffect(() => {
+    const eligibleIds = eligibleMembers.map((member) => member.id);
+    const savedIds = order.map((entry) => entry.member_id).filter((id) => eligibleIds.includes(id));
+    setManualOrderIds(savedIds.length === eligibleIds.length ? savedIds : eligibleIds);
+    setTakeoverMemberId((current) => eligibleIds.includes(current) ? current : eligibleIds[0] || "");
+  }, [members, order]);
+
+  useEffect(() => {
+    setTakeoverGameId((current) => availableGames.some((game) => game.id === current) ? current : availableGames[0]?.id || "");
+  }, [availableGames]);
 
   async function perform(action) {
     setError("");
@@ -65,6 +80,31 @@ export default function Commissioner({ members, games, picks, run, mode, setMode
         setSeasonAccessCode("");
         setConfirmAccessCode("");
       });
+    }
+  }
+
+  function moveManualMember(index, direction) {
+    const destination = index + direction;
+    if (destination < 0 || destination >= manualOrderIds.length) return;
+    setManualOrderIds((current) => {
+      const next = [...current];
+      [next[index], next[destination]] = [next[destination], next[index]];
+      return next;
+    });
+  }
+
+  function confirmManualOrder() {
+    if (window.confirm("Use this manual order as the official draft order?")) {
+      perform(() => setManualOrder(manualOrderIds));
+    }
+  }
+
+  function confirmTakeoverPick() {
+    const selectedMember = members.find((member) => member.id === takeoverMemberId);
+    const selectedGame = availableGames.find((game) => game.id === takeoverGameId);
+    if (!selectedMember || !selectedGame) return;
+    if (window.confirm(`Draft ${selectedGame.opponent} for ${selectedMember.name}?`)) {
+      perform(() => takeoverPick(selectedMember.id, selectedGame.id));
     }
   }
 
@@ -137,12 +177,33 @@ export default function Commissioner({ members, games, picks, run, mode, setMode
           <label>Draft Environment</label>
           <div className="mode-buttons"><button className={mode === "real" ? "control-button start" : "control-button"} onClick={() => setMode("real")}>Real Draft</button><button className={mode === "test" ? "control-button warning" : "control-button"} onClick={() => setMode("test")}>Test Mode</button></div>
         </div>
-        <div className="control-section"><label>Pick Clock</label><select className="text-input" value={run?.pick_clock_seconds || 90} onChange={(event) => perform(() => control("clock", Number(event.target.value)))}><option value={30}>30 seconds</option><option value={60}>1 minute</option><option value={90}>1:30</option><option value={120}>2 minutes</option><option value={180}>3 minutes</option></select></div>
         <div className="control-section">
           <button className="control-button major-action" disabled={working || !run || invalidRealConfiguration} onClick={() => perform(randomize)}>RANDOMIZE DRAFT ORDER</button>
+          <div className="manual-order-control">
+            <strong>SET DRAFT ORDER MANUALLY</strong>
+            {manualOrderIds.map((memberId, index) => {
+              const draftMember = members.find((member) => member.id === memberId);
+              return <div className="manual-order-row" key={memberId}>
+                <span>{index + 1}. {draftMember?.name}</span>
+                <div><button type="button" disabled={working || index === 0 || run?.status !== "setup"} onClick={() => moveManualMember(index, -1)} aria-label={`Move ${draftMember?.name} up`}>↑</button><button type="button" disabled={working || index === manualOrderIds.length - 1 || run?.status !== "setup"} onClick={() => moveManualMember(index, 1)} aria-label={`Move ${draftMember?.name} down`}>↓</button></div>
+              </div>;
+            })}
+            <button className="control-button major-action" type="button" disabled={working || !run || run.status !== "setup" || invalidRealConfiguration || manualOrderIds.length === 0} onClick={confirmManualOrder}>CONFIRM MANUAL ORDER</button>
+          </div>
           {run?.status === "live" ? <button className="control-button warning" onClick={() => perform(() => control("pause"))}>Pause Draft</button> : run?.status === "paused" ? <button className="control-button start" onClick={() => perform(() => control("resume"))}>Resume Draft</button> : null}
           {invalidRealConfiguration && <div className="error-text">Assign exactly {allowance.draftable} games before randomizing or starting the real draft.</div>}
           <button className="control-button danger" disabled={working || !run} onClick={confirmReset}>{mode === "test" ? "RESET TEST DRAFT" : "RESET DRAFT"}</button>
+        </div>
+      </div>
+      <div className="panel"><div className="panel-title-row"><h2>Commissioner Takeover</h2>{run?.takeover_enabled && <span className="test-mode-pill">ACTIVE</span>}</div>
+        <div className="control-section">
+          <p className="muted">Emergency mode for making a draft pick on behalf of any active member.</p>
+          <button className={run?.takeover_enabled ? "control-button danger" : "control-button major-action"} type="button" disabled={working || run?.status !== "live"} onClick={() => perform(() => setTakeover(!run?.takeover_enabled))}>{run?.takeover_enabled ? "TURN OFF TAKEOVER" : "ENABLE TAKEOVER"}</button>
+          {run?.takeover_enabled && <div className="takeover-form">
+            <label>Pick For<select className="text-input" value={takeoverMemberId} onChange={(event) => setTakeoverMemberId(event.target.value)}>{eligibleMembers.map((draftMember) => <option key={draftMember.id} value={draftMember.id}>{draftMember.name}</option>)}</select></label>
+            <label>Available Game<select className="text-input" value={takeoverGameId} onChange={(event) => setTakeoverGameId(event.target.value)}>{availableGames.map((game) => <option key={game.id} value={game.id}>{game.opponent} — {game.date}</option>)}</select></label>
+            <button className="control-button start" type="button" disabled={working || !takeoverMemberId || !takeoverGameId} onClick={confirmTakeoverPick}>CONFIRM PICK</button>
+          </div>}
         </div>
       </div>
       <div className="panel"><div className="panel-title-row"><h2>Draft Status</h2></div><div className="control-section"><span className="muted">Status</span><div className="status-value">{run?.status || "Not configured"}</div><span className="muted">Order</span><div className="status-value">{run?.order_generated_at ? "Generated — hidden until reveal" : "Not generated"}</div></div></div>

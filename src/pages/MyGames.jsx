@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../data/seasonData";
-import { filterDraftBoardGames, formatCurrency, isTurnOpen } from "../lib/draftLogic";
+import { filterDraftBoardGames, formatCurrency } from "../lib/draftLogic";
 
 function Indicator({ type }) {
   return <span className={`game-indicator ${type.toLowerCase()}`}>{type}</span>;
@@ -11,7 +11,6 @@ export default function MyGames({ member, games, picks, preferences, run, mode,
   const [rankDrafts, setRankDrafts] = useState({});
   const [error, setError] = useState("");
   const [workingGameId, setWorkingGameId] = useState(null);
-  const [clockNow, setClockNow] = useState(Date.now());
   const [filters, setFilters] = useState({ opponent: "", month: "", day: "", date: "", minimumTime: "" });
   const preferenceMap = useMemo(
     () => new Map(preferences.map((preference) => [preference.game_id, preference])),
@@ -29,13 +28,6 @@ export default function MyGames({ member, games, picks, preferences, run, mode,
     ])));
   }, [preferences]);
 
-  useEffect(() => {
-    setClockNow(Date.now());
-    if (run?.status !== "live" || !run?.turn_deadline_at) return undefined;
-    const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [run?.status, run?.turn_deadline_at]);
-
   const rows = useMemo(() => filterDraftBoardGames(games, filters).sort((first, second) => {
     const firstPreference = preferenceMap.get(first.id);
     const secondPreference = preferenceMap.get(second.id);
@@ -51,7 +43,7 @@ export default function MyGames({ member, games, picks, preferences, run, mode,
 
   const myTurn = run?.status === "live" && run.current_member_id === member?.id;
   const commissionerTestTurn = isCommissioner && mode === "test" && run?.status === "live";
-  const canPickNow = (myTurn || commissionerTestTurn) && isTurnOpen(run, clockNow);
+  const canPickNow = myTurn || commissionerTestTurn;
   const draftedCount = picks.filter((pick) => pick.member_id === member?.id).length;
   const myPicks = useMemo(() => picks.filter((pick) => pick.member_id === member?.id), [picks, member?.id]);
   const payment = paymentSummary.find((item) => item.member_id === member?.id) || null;

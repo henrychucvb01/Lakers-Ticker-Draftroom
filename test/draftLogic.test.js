@@ -10,8 +10,6 @@ import {
   getDraftCompletionKey,
   getAllowanceSummary,
   getNextEligibleSlot,
-  getRemainingSeconds,
-  isTurnOpen,
 } from "../src/lib/draftLogic.js";
 
 const members = [
@@ -75,18 +73,6 @@ test("real payment totals remain deterministic after data reload", () => {
   assert.equal(calculateMemberAmountDue(4200, 21, gamesDrafted), 400);
 });
 
-test("calculates a backend deadline countdown without resetting it", () => {
-  assert.equal(getRemainingSeconds("2026-09-06T12:01:30.000Z", Date.parse("2026-09-06T12:01:00.000Z")), 30);
-  assert.equal(getRemainingSeconds("2026-09-06T12:00:30.000Z", Date.parse("2026-09-06T12:01:00.000Z")), 0);
-});
-
-test("closes picking exactly at the backend deadline", () => {
-  const run = { status: "live", turn_deadline_at: "2026-09-06T12:01:00.000Z" };
-  assert.equal(isTurnOpen(run, Date.parse("2026-09-06T12:00:59.999Z")), true);
-  assert.equal(isTurnOpen(run, Date.parse("2026-09-06T12:01:00.000Z")), false);
-  assert.equal(isTurnOpen({ ...run, status: "completed" }, Date.parse("2026-09-06T12:00:00.000Z")), false);
-});
-
 test("creates one stable completion celebration key", () => {
   const run = { id: "real-run", completed_at: "2026-09-06T12:05:00.000Z" };
   assert.equal(getDraftCompletionKey(run), "lakers-draft-complete-real-run-2026-09-06T12:05:00.000Z");
@@ -123,6 +109,26 @@ test("finds the next incomplete slot", () => {
     memberId: "courtney",
     round: 1,
     overallPick: 3,
+  });
+});
+
+test("manual member order is preserved by snake allocation", () => {
+  const manualMembers = [members[2], members[0], members[1]];
+  assert.deepEqual(buildSnakePickSlots(manualMembers).slice(0, 5), [
+    { memberId: "courtney", round: 1, overallPick: 1 },
+    { memberId: "jason", round: 1, overallPick: 2 },
+    { memberId: "huy", round: 1, overallPick: 3 },
+    { memberId: "huy", round: 2, overallPick: 4 },
+    { memberId: "jason", round: 2, overallPick: 5 },
+  ]);
+});
+
+test("takeover can fill a future slot and normal drafting resumes at the earliest open slot", () => {
+  const slots = buildSnakePickSlots(members);
+  assert.deepEqual(getNextEligibleSlot(slots, [{ memberId: "courtney", round: 1 }]), {
+    memberId: "jason",
+    round: 1,
+    overallPick: 1,
   });
 });
 
