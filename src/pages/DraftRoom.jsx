@@ -8,7 +8,7 @@ function Indicator({ type }) {
 }
 
 export default function DraftRoom({ members, member, run, order, picks, availableGames,
-  isCommissioner, mode, realtimeStatus, reveal, completeReveal, makePick, control, setTakeover, takeoverPick }) {
+  isCommissioner, mode, realtimeStatus, reveal, completeReveal, makePick, control, setTakeover, takeoverPick, meeting }) {
   const [revealedCount, setRevealedCount] = useState(0);
   const [message, setMessage] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
@@ -102,6 +102,12 @@ export default function DraftRoom({ members, member, run, order, picks, availabl
       </div>}
       {message && <div className="error-text compact-error">{message}</div>}
     </section>
+
+    {meeting && <section className="draft-meeting-bar panel">
+      <div><span className="small-label">DRAFT MEETING</span><strong>{meeting.title}</strong></div>
+      <div><span className="small-label">DATE &amp; TIME</span><strong>{new Intl.DateTimeFormat("en-US", { dateStyle: "full", timeStyle: "short", timeZone: "America/Los_Angeles" }).format(new Date(meeting.starts_at))} PT</strong></div>
+      <a className="control-button major-action join-zoom-button" href={meeting.meeting_url} target="_blank" rel="noreferrer">JOIN ZOOM</a>
+    </section>}
 
     <section className="draft-order-bar panel">
       <strong className="draft-order-label">DRAFT ORDER</strong>
