@@ -933,6 +933,81 @@ button:disabled {
   border-top: 1px solid #7443a0;
 }
 
+.draft-meeting-settings {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #7443a0;
+}
+
+.draft-meeting-settings > p,
+.draft-meeting-settings > button,
+.invite-email-list {
+  margin-right: 14px;
+  margin-left: 14px;
+}
+
+.meeting-invite-form {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 0.8fr;
+  gap: 12px;
+  padding: 14px;
+}
+
+.meeting-invite-form label,
+.invite-email-list label {
+  color: #eee6f5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.meeting-wide-field {
+  grid-column: 1 / -1;
+}
+
+.meeting-notes {
+  min-height: 74px;
+  resize: vertical;
+}
+
+.invite-email-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #7443a0;
+  border-radius: 7px;
+}
+
+.invite-email-list > strong {
+  grid-column: 1 / -1;
+  color: #fdb927;
+}
+
+.calendar-invite-button {
+  margin-top: 14px;
+}
+
+.draft-meeting-bar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(250px, 1.5fr) auto;
+  align-items: center;
+  gap: 18px;
+  margin-top: 12px;
+  padding: 12px 16px;
+}
+
+.draft-meeting-bar > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.join-zoom-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .financial-settings-form {
   display: grid;
   grid-template-columns: 1fr 1fr 150px 190px;
@@ -1394,6 +1469,18 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
   }
 
+  .meeting-invite-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .meeting-wide-field {
+    grid-column: 1 / -1;
+  }
+
+  .draft-meeting-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .games-remaining-total {
     grid-column: 1 / -1;
   }
@@ -1473,7 +1560,10 @@ button:disabled {
 
   .member-payment-summary,
   .payment-allowance-row,
-  .financial-settings-form {
+  .financial-settings-form,
+  .meeting-invite-form,
+  .invite-email-list,
+  .draft-meeting-bar {
     grid-template-columns: 1fr;
   }
 
