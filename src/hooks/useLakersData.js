@@ -13,6 +13,8 @@ export default function useLakersData(session, mode, identity) {
     picks: [],
     preferences: [],
     paymentSummary: [],
+    meeting: null,
+    inviteContacts: [],
   });
   const [loading, setLoading] = useState(Boolean(session));
   const [error, setError] = useState("");
@@ -51,7 +53,7 @@ export default function useLakersData(session, mode, identity) {
     }
 
     const seasonId = seasonResult.data.id;
-    const [membersResult, gamesResult, runsResult, preferencesResult, paymentsResult] = await Promise.all([
+    const [membersResult, gamesResult, runsResult, preferencesResult, paymentsResult, meetingResult, contactsResult] = await Promise.all([
       supabase.from("lakers_season_members").select("*").eq("season_id", seasonId).order("created_at"),
       supabase.from("lakers_games").select("*").eq("season_id", seasonId).order("game_date"),
       supabase.from("lakers_draft_runs").select("*").eq("season_id", seasonId),
@@ -59,8 +61,12 @@ export default function useLakersData(session, mode, identity) {
         ? supabase.rpc("lakers_get_my_preferences")
         : Promise.resolve({ data: [], error: null }),
       supabase.rpc("lakers_get_payment_summary"),
+      supabase.rpc("lakers_get_draft_meeting"),
+      identity?.identity_role === "commissioner"
+        ? supabase.rpc("lakers_get_invite_contacts")
+        : Promise.resolve({ data: [], error: null }),
     ]);
-    const firstError = membersResult.error || gamesResult.error || runsResult.error || preferencesResult.error || paymentsResult.error;
+    const firstError = membersResult.error || gamesResult.error || runsResult.error || preferencesResult.error || paymentsResult.error || meetingResult.error || contactsResult.error;
     if (firstError) {
       if (generation !== refreshGeneration.current) return;
       setError(firstError.message);
@@ -117,6 +123,8 @@ export default function useLakersData(session, mode, identity) {
         cost_per_game: Number(payment.cost_per_game),
         amount_due: Number(payment.amount_due),
       })),
+      meeting: meetingResult.data?.[0] || null,
+      inviteContacts: contactsResult.data || [],
     });
     setError("");
     setLoading(false);
@@ -149,6 +157,7 @@ export default function useLakersData(session, mode, identity) {
       .on("postgres_changes", { event: "*", schema: "public", table: "lakers_season_members", filter: seasonFilter }, synchronize)
       .on("postgres_changes", { event: "*", schema: "public", table: "lakers_season_financial_settings", filter: seasonFilter }, synchronize)
       .on("postgres_changes", { event: "*", schema: "public", table: "lakers_member_payments", filter: seasonFilter }, synchronize)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lakers_draft_meetings", filter: seasonFilter }, synchronize)
       .subscribe((status) => {
         setRealtimeStatus(status);
         if (status === "SUBSCRIBED") synchronize();
@@ -239,6 +248,17 @@ export default function useLakersData(session, mode, identity) {
     }),
     changeSeasonAccessCode: (accessCode) => rpc("lakers_change_season_access_code", {
       requested_code: accessCode,
+    }),
+    saveInviteContact: (memberId, email) => rpc("lakers_save_invite_contact", {
+      requested_member_id: memberId,
+      requested_email: email,
+    }),
+    saveDraftMeeting: (meeting) => rpc("lakers_save_draft_meeting", {
+      requested_title: meeting.title,
+      requested_starts_at: meeting.startsAt,
+      requested_duration_minutes: meeting.durationMinutes,
+      requested_meeting_url: meeting.meetingUrl,
+      requested_notes: meeting.notes || null,
     }),
     setPreference: (gameId, favorite, rank) => rpc("lakers_set_my_preference", {
       requested_game_id: gameId,
