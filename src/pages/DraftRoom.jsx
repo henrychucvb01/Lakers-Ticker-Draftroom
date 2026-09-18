@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../data/seasonData";
 import { canRevealDraftOrder } from "../lib/accessControl";
-import { getDraftCompletionKey } from "../lib/draftLogic";
+import { getDraftCompletionKey, getTakeoverMemberId } from "../lib/draftLogic";
 
 function Indicator({ type }) {
   return <span className={`game-indicator ${type.toLowerCase()}`}>{type}</span>;
@@ -32,9 +32,13 @@ export default function DraftRoom({ members, member, run, order, picks, availabl
   const commissionerCanStart = Boolean(isCommissioner && run?.status === "setup" && run?.reveal_completed_at);
 
   useEffect(() => {
-    const preferredMemberId = currentPicker?.id || takeoverMembers[0]?.id || "";
-    setTakeoverMemberId((current) => takeoverMembers.some((draftMember) => draftMember.id === current) ? current : preferredMemberId);
-  }, [currentPicker?.id, takeoverMembers]);
+    setTakeoverMemberId((current) => getTakeoverMemberId(
+      takeoverMembers,
+      currentPicker?.id,
+      current,
+      takeoverActive
+    ));
+  }, [currentPicker?.id, takeoverMembers, takeoverActive]);
 
   useEffect(() => {
     if (run?.status !== "completed" || !run?.completed_at) return undefined;

@@ -10,6 +10,7 @@ import {
   getDraftCompletionKey,
   getAllowanceSummary,
   getNextEligibleSlot,
+  getTakeoverMemberId,
 } from "../src/lib/draftLogic.js";
 
 const members = [
@@ -130,6 +131,13 @@ test("takeover can fill a future slot and normal drafting resumes at the earlies
     round: 1,
     overallPick: 1,
   });
+});
+
+test("takeover automatically follows the current picker while allowing manual selection", () => {
+  const eligible = [{ id: "huy" }, { id: "jason" }, { id: "courtney" }];
+  assert.equal(getTakeoverMemberId(eligible, "jason", "huy", true), "jason");
+  assert.equal(getTakeoverMemberId(eligible, "courtney", "jason", true), "courtney");
+  assert.equal(getTakeoverMemberId(eligible, "courtney", "jason", false), "jason");
 });
 
 test("allows only the current eligible member to pick", () => {

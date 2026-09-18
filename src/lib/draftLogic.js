@@ -113,6 +113,12 @@ export function countRealDraftedGames(picks, runs, memberId) {
   return picks.filter((pick) => pick.member_id === memberId && realRunIds.has(pick.draft_run_id)).length;
 }
 
+export function getTakeoverMemberId(eligibleMembers, currentPickerId, selectedMemberId, takeoverActive) {
+  if (takeoverActive && eligibleMembers.some((member) => member.id === currentPickerId)) return currentPickerId;
+  if (eligibleMembers.some((member) => member.id === selectedMemberId)) return selectedMemberId;
+  return eligibleMembers[0]?.id || "";
+}
+
 export function formatCurrency(value) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value) || 0);
 }
