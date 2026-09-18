@@ -11,3 +11,7 @@ export function resolvePermittedPage(page, isCommissioner) {
 export function didAuthenticatedUserChange(currentUserId, nextUserId) {
   return (currentUserId || null) !== (nextUserId || null);
 }
+
+export function canRevealDraftOrder(isCommissioner, run) {
+  return Boolean(isCommissioner && run?.order_generated_at && !run?.reveal_started_at);
+}

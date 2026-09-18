@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../data/seasonData";
+import { canRevealDraftOrder } from "../lib/accessControl";
 import { getDraftCompletionKey } from "../lib/draftLogic";
 
 function Indicator({ type }) {
@@ -7,11 +8,13 @@ function Indicator({ type }) {
 }
 
 export default function DraftRoom({ members, member, run, order, picks, availableGames,
-  isCommissioner, mode, realtimeStatus, reveal, completeReveal, makePick, control }) {
+  isCommissioner, mode, realtimeStatus, reveal, completeReveal, makePick, control, setTakeover, takeoverPick }) {
   const [revealedCount, setRevealedCount] = useState(0);
   const [message, setMessage] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [takeoverMemberId, setTakeoverMemberId] = useState("");
+  const [workingGameId, setWorkingGameId] = useState(null);
   const currentPicker = members.find((item) => item.id === run?.current_member_id) || null;
   const isMyTurn = Boolean(run?.status === "live" && member?.id === run.current_member_id);
   const commissionerCanTest = Boolean(isCommissioner && mode === "test" && run?.status === "live");
@@ -20,8 +23,18 @@ export default function DraftRoom({ members, member, run, order, picks, availabl
   const rounds = useMemo(() => Math.max(0, ...members.filter((item) => item.status === "active").map((item) => item.gamesAllowed)), [members]);
   const myPicks = useMemo(() => picks.filter((pick) => pick.member_id === member?.id), [picks, member?.id]);
   const recentPicks = useMemo(() => [...picks].slice(-5).reverse(), [picks]);
+  const takeoverMembers = useMemo(() => members.filter((draftMember) => {
+    const drafted = picks.filter((pick) => pick.member_id === draftMember.id).length;
+    return draftMember.status === "active" && drafted < draftMember.gamesAllowed;
+  }), [members, picks]);
+  const takeoverActive = Boolean(isCommissioner && run?.status === "live" && run?.takeover_enabled);
   const mayPick = isMyTurn || commissionerCanTest;
   const commissionerCanStart = Boolean(isCommissioner && run?.status === "setup" && run?.reveal_completed_at);
+
+  useEffect(() => {
+    const preferredMemberId = currentPicker?.id || takeoverMembers[0]?.id || "";
+    setTakeoverMemberId((current) => takeoverMembers.some((draftMember) => draftMember.id === current) ? current : preferredMemberId);
+  }, [currentPicker?.id, takeoverMembers]);
 
   useEffect(() => {
     if (run?.status !== "completed" || !run?.completed_at) return undefined;
@@ -52,11 +65,14 @@ export default function DraftRoom({ members, member, run, order, picks, availabl
 
   async function selectGame(gameId) {
     setMessage("");
+    setWorkingGameId(gameId);
     try {
-      await makePick(gameId);
+      if (takeoverActive) await takeoverPick(takeoverMemberId, gameId);
+      else await makePick(gameId);
     } catch (error) {
       setMessage(error.message);
     }
+    setWorkingGameId(null);
   }
 
   const statusMessage = !run?.order_generated_at ? "Waiting for the Commissioner to randomize the draft order."
@@ -74,8 +90,12 @@ export default function DraftRoom({ members, member, run, order, picks, availabl
       <span className={`realtime-status ${realtimeStatus === "SUBSCRIBED" ? "connected" : "connecting"}`}>{realtimeStatus === "SUBSCRIBED" ? "LIVE SYNC" : "RECONNECTING…"}</span>
       {mode === "test" && <span className="test-mode-pill">TEST MODE</span>}
       {showTurnAlert && <div className="compact-turn-alert">YOUR TURN{commissionerCanTest && currentPicker ? ` — SIMULATING ${currentPicker.name.toUpperCase()}` : ""}</div>}
-      {run?.order_generated_at && !run.reveal_started_at && <button className="primary-button compact-reveal-button" type="button" onClick={() => reveal().catch((error) => setMessage(error.message))}>REVEAL DRAFT ORDER</button>}
+      {canRevealDraftOrder(isCommissioner, run) && <button className="primary-button compact-reveal-button" type="button" onClick={() => reveal().catch((error) => setMessage(error.message))}>REVEAL DRAFT ORDER</button>}
       {commissionerCanStart && <button className="control-button start compact-start-button" type="button" onClick={() => control("start").catch((error) => setMessage(error.message))}>START DRAFT</button>}
+      {isCommissioner && run?.status === "live" && <div className={`draft-room-takeover ${takeoverActive ? "active" : ""}`}>
+        <button className={takeoverActive ? "control-button danger" : "control-button major-action"} type="button" onClick={() => setTakeover(!takeoverActive).catch((error) => setMessage(error.message))}>{takeoverActive ? "TURN OFF TAKEOVER" : "COMMISSIONER TAKEOVER"}</button>
+        {takeoverActive && <label>Pick For<select className="text-input" value={takeoverMemberId} onChange={(event) => setTakeoverMemberId(event.target.value)}>{takeoverMembers.map((draftMember) => <option key={draftMember.id} value={draftMember.id}>{draftMember.name}</option>)}</select></label>}
+      </div>}
       {message && <div className="error-text compact-error">{message}</div>}
     </section>
 
@@ -89,7 +109,7 @@ export default function DraftRoom({ members, member, run, order, picks, availabl
       <div className="panel available-games-panel">
         <div className="panel-title-row"><h2>Available Games</h2><span className="game-count">{availableGames.length} available</span></div>
         <div className="games-wrap"><table className="games-table"><thead><tr><th>Rank</th><th>Opponent</th><th>Date & Time</th><th>Select</th></tr></thead>
-          <tbody>{availableGames.map((game, index) => <tr key={game.id}><td>{index + 1}</td><td className="opponent">{game.opponent}{game.preseason && <Indicator type="PRE" />}{game.cup && <Indicator type="CUP" />}</td><td><div>{formatDate(game.date)}</div><span className="muted">{game.time}</span></td><td><button className="select-button" disabled={!mayPick} onClick={() => selectGame(game.id)} type="button">Select</button></td></tr>)}</tbody></table></div>
+          <tbody>{availableGames.map((game, index) => <tr key={game.id}><td>{index + 1}</td><td className="opponent">{game.opponent}{game.preseason && <Indicator type="PRE" />}{game.cup && <Indicator type="CUP" />}</td><td><div>{formatDate(game.date)}</div><span className="muted">{game.time}</span></td><td><button className={`select-button ${takeoverActive ? "takeover-pick-button" : ""}`} disabled={workingGameId === game.id || (takeoverActive ? !takeoverMemberId : !mayPick)} onClick={() => selectGame(game.id)} type="button">{workingGameId === game.id ? "Picking…" : takeoverActive ? `PICK FOR ${takeoverMembers.find((draftMember) => draftMember.id === takeoverMemberId)?.name?.toUpperCase() || "MEMBER"}` : "Select"}</button></td></tr>)}</tbody></table></div>
       </div>
 
       <div className="draft-board-column">

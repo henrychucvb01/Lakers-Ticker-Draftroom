@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canAccessPage, didAuthenticatedUserChange, resolvePermittedPage } from "../src/lib/accessControl.js";
+import { canAccessPage, canRevealDraftOrder, didAuthenticatedUserChange, resolvePermittedPage } from "../src/lib/accessControl.js";
 
 test("regular members cannot open Commissioner-only pages", () => {
   for (const page of ["games", "members", "commissioner"]) {
@@ -29,4 +29,11 @@ test("login, logout, and a different device user reset member identity", () => {
   assert.equal(didAuthenticatedUserChange(null, "device-user"), true);
   assert.equal(didAuthenticatedUserChange("device-user", null), true);
   assert.equal(didAuthenticatedUserChange("device-user", "different-user"), true);
+});
+
+test("only the Commissioner can reveal a generated draft order", () => {
+  const readyRun = { order_generated_at: "2026-09-17T12:00:00Z", reveal_started_at: null };
+  assert.equal(canRevealDraftOrder(false, readyRun), false);
+  assert.equal(canRevealDraftOrder(true, readyRun), true);
+  assert.equal(canRevealDraftOrder(true, { ...readyRun, reveal_started_at: "2026-09-17T12:01:00Z" }), false);
 });
