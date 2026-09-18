@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { isValidMemberPin, normalizeMemberPin } from "../lib/memberPin";
 import { formatCurrency, getAllowanceSummary } from "../lib/draftLogic";
+import { buildGoogleCalendarUrl, isValidEmail } from "../lib/calendarInvite";
 
 export default function Commissioner({ members, games, picks, run, order, mode, setMode, randomize, setManualOrder,
   control, reset, updateAllowance, resetMemberPin, changeSeasonAccessCode,
-  paymentSummary, updateFinancialSettings, setPaymentPaid }) {
+  paymentSummary, updateFinancialSettings, setPaymentPaid, meeting, inviteContacts,
+  saveInviteContact, saveDraftMeeting }) {
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
   const [pinEntries, setPinEntries] = useState({});
@@ -13,6 +15,15 @@ export default function Commissioner({ members, games, picks, run, order, mode, 
   const [packageCost, setPackageCost] = useState("");
   const [totalPackageGames, setTotalPackageGames] = useState("");
   const [manualOrderIds, setManualOrderIds] = useState([]);
+  const [inviteEmails, setInviteEmails] = useState({});
+  const [meetingForm, setMeetingForm] = useState({
+    title: "Lakers Season Ticket Draft",
+    date: "",
+    time: "18:00",
+    durationMinutes: 90,
+    meetingUrl: "https://lausd.zoom.us/my/huysmeeting",
+    notes: "Join us for the Lakers Season Ticket Draft.",
+  });
   const allowance = getAllowanceSummary(members, games);
   const invalidRealConfiguration = mode === "real" && !allowance.valid;
   const eligibleMembers = members.filter((member) => member.status === "active" && member.gamesAllowed > 0);
@@ -29,6 +40,24 @@ export default function Commissioner({ members, games, picks, run, order, mode, 
     const savedIds = order.map((entry) => entry.member_id).filter((id) => eligibleIds.includes(id));
     setManualOrderIds(savedIds.length === eligibleIds.length ? savedIds : eligibleIds);
   }, [members, order]);
+
+  useEffect(() => {
+    setInviteEmails(Object.fromEntries(inviteContacts.map((contact) => [contact.member_id, contact.email || ""])));
+  }, [inviteContacts]);
+
+  useEffect(() => {
+    if (!meeting?.starts_at) return;
+    const start = new Date(meeting.starts_at);
+    const pad = (value) => String(value).padStart(2, "0");
+    setMeetingForm({
+      title: meeting.title || "Lakers Season Ticket Draft",
+      date: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
+      time: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
+      durationMinutes: meeting.duration_minutes || 90,
+      meetingUrl: meeting.meeting_url || "https://lausd.zoom.us/my/huysmeeting",
+      notes: meeting.notes || "Join us for the Lakers Season Ticket Draft.",
+    });
+  }, [meeting?.updated_at]);
 
   async function perform(action) {
     setError("");
@@ -92,12 +121,53 @@ export default function Commissioner({ members, games, picks, run, order, mode, 
     }
   }
 
+  async function saveMeetingAndOpenCalendar() {
+    const activeInvitees = members
+      .filter((draftMember) => draftMember.status === "active" && draftMember.name !== "Huy")
+      .map((draftMember) => ({ member: draftMember, email: (inviteEmails[draftMember.id] || "").trim() }));
+    const invalidInvitee = activeInvitees.find((invitee) => !isValidEmail(invitee.email));
+    if (invalidInvitee) {
+      setError(`Enter a valid email address for ${invalidInvitee.member.name}.`);
+      return;
+    }
+    let calendarUrl;
+    try {
+      calendarUrl = buildGoogleCalendarUrl({ ...meetingForm, emails: activeInvitees.map((invitee) => invitee.email) });
+    } catch (caught) {
+      setError(caught.message);
+      return;
+    }
+    await perform(async () => {
+      await Promise.all(activeInvitees.map((invitee) => saveInviteContact(invitee.member.id, invitee.email)));
+      const startsAt = new Date(`${meetingForm.date}T${meetingForm.time}:00`).toISOString();
+      await saveDraftMeeting({ ...meetingForm, startsAt, durationMinutes: Number(meetingForm.durationMinutes) });
+      window.location.assign(calendarUrl);
+    });
+  }
+
   return <main className="commissioner-layout">
     <section className="commissioner-main">
       <div className="panel">
         <div className="panel-title-row"><h2>Draft Commissioner</h2><span className={mode === "test" ? "test-mode-pill" : "game-count"}>{mode === "test" ? "TEST MODE" : "REAL DRAFT"}</span></div>
         <div className="commissioner-help">Manage member allowances and prepare the draft. The randomized order stays hidden here and is revealed only in the Draft Room.</div>
         {error && <div className="error-text action-error">{error}</div>}
+        <div className="draft-meeting-settings">
+          <div className="panel-title-row"><h2>Draft Meeting Invitation</h2></div>
+          <p className="muted">Set the draft time and open a completed Google Calendar invitation. Click Save in Google Calendar to email all active members.</p>
+          <div className="meeting-invite-form">
+            <label>Event Name<input className="text-input" value={meetingForm.title} onChange={(event) => setMeetingForm((current) => ({ ...current, title: event.target.value }))} /></label>
+            <label>Date<input className="text-input" type="date" value={meetingForm.date} onChange={(event) => setMeetingForm((current) => ({ ...current, date: event.target.value }))} /></label>
+            <label>Time (Pacific)<input className="text-input" type="time" value={meetingForm.time} onChange={(event) => setMeetingForm((current) => ({ ...current, time: event.target.value }))} /></label>
+            <label>Length (minutes)<input className="text-input" type="number" min="15" step="15" value={meetingForm.durationMinutes} onChange={(event) => setMeetingForm((current) => ({ ...current, durationMinutes: event.target.value }))} /></label>
+            <label className="meeting-wide-field">Zoom Meeting Link<input className="text-input" type="url" value={meetingForm.meetingUrl} onChange={(event) => setMeetingForm((current) => ({ ...current, meetingUrl: event.target.value }))} /></label>
+            <label className="meeting-wide-field">Message<textarea className="text-input meeting-notes" value={meetingForm.notes} onChange={(event) => setMeetingForm((current) => ({ ...current, notes: event.target.value }))} /></label>
+          </div>
+          <div className="invite-email-list">
+            <strong>Member Emails</strong>
+            {members.filter((draftMember) => draftMember.status === "active" && draftMember.name !== "Huy").map((draftMember) => <label key={draftMember.id}>{draftMember.name}<input className="text-input" type="email" value={inviteEmails[draftMember.id] || ""} onChange={(event) => setInviteEmails((current) => ({ ...current, [draftMember.id]: event.target.value }))} /></label>)}
+          </div>
+          <button className="control-button major-action calendar-invite-button" type="button" disabled={working || !meetingForm.date || !meetingForm.time || !meetingForm.meetingUrl} onClick={saveMeetingAndOpenCalendar}>SAVE MEETING &amp; OPEN GOOGLE CALENDAR</button>
+        </div>
         <div className="financial-settings">
           <div className="panel-title-row"><h2>Season Cost Calculator</h2></div>
           <div className="financial-settings-form">
